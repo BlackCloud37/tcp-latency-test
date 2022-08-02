@@ -5,9 +5,9 @@ A simple tool for test latency between TCP client/server.
 It sends SYN to server and waits for SYN/ACK, then measure RTTs between SYN and SYN/ACK.
 
 # Usage
-> No binary was released yet, you may need to clone this repo and use `cargo build` or `cargo run` to run it,
->     it has been tested on rehl and macos
->     it may requires root permission
+For mac and linux user, you can download executable binary from release page.
+
+If you cannot run these exes, you can clone this repo and build with `cargo build` (nightly rust environment is required)
 
 ```bash
 $ ./tcpping --help
