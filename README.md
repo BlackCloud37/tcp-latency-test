@@ -27,7 +27,7 @@ OPTIONS:
 
 For example, test latency from my laptop to bilibili.com(47.103.24.173)'s 443 port:
 ```
-$ ./tcplatency -i en0 -h 47.103.24.173 -p 443
+$ ./tcpping -i en0 -h 47.103.24.173 -p 443
 SYN&ACK(0) from 47.103.24.173 time=26573 us
 SYN&ACK(1) from 47.103.24.173 time=18944 us
 SYN&ACK(2) from 47.103.24.173 time=15782 us
