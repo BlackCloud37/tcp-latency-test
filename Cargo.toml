@@ -1,5 +1,5 @@
 [package]
-name = "tcp-latency-test"
+name = "tcpping"
 version = "0.1.0"
 edition = "2021"
 

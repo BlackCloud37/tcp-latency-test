@@ -1,4 +1,4 @@
-# TCP latency tester
+# TCP Ping
 
 A simple tool for test latency between TCP client/server.
 
@@ -9,44 +9,38 @@ It sends SYN to server and waits for SYN/ACK, then measure RTTs between SYN and 
 >     it has been tested on rehl and macos
 >     it may requires root permission
 
-`$ ./tcplatency <interface name> <dest ipv4 addr> <dest port> [count]`
+```bash
+$ ./tcpping --help
+tcpping 0.1.0
+
+USAGE:
+    tcpping [OPTIONS] --if-name <IF_NAME> --hostname <HOSTNAME>
+
+OPTIONS:
+    -c, --count <COUNT>          Number of times to ping [default: 10]
+    -h, --hostname <HOSTNAME>    Destination hostname(domain or ipv4 address, ipv6 is not tested)
+        --help                   Print help information
+    -i, --if-name <IF_NAME>      Local interface
+    -p, --port <PORT>            Destination port [default: 80]
+    -V, --version                Print version information
+```
 
 For example, test latency from my laptop to bilibili.com(47.103.24.173)'s 443 port:
 ```
-$ ./tcplatency en0 47.103.24.173 443 10
-sending 0 SYN packet
-send duration 8 us
-0 packet receive timeout(10s)
-sending 1 SYN packet
-send duration 169 us
-1 packet rtt: 17353 us
-sending 2 SYN packet
-send duration 46 us
-2 packet rtt: 17549 us
-sending 3 SYN packet
-send duration 39 us
-3 packet rtt: 17527 us
-sending 4 SYN packet
-send duration 36 us
-4 packet rtt: 17393 us
-sending 5 SYN packet
-send duration 34 us
-5 packet rtt: 16951 us
-sending 6 SYN packet
-send duration 35 us
-6 packet rtt: 18041 us
-sending 7 SYN packet
-send duration 34 us
-7 packet rtt: 18084 us
-sending 8 SYN packet
-send duration 32 us
-8 packet rtt: 17144 us
-sending 9 SYN packet
-send duration 31 us
-9 packet rtt: 18465 us
-Valid Result Count: 9
-RTTs(ns): 17353021,17549396,17527635,17393031,16951531,18041260,18084427,17144146,18465760
-AVG RTT(ns): 17612245.222222224
+$ ./tcplatency -i en0 -h 47.103.24.173 -p 443
+SYN&ACK(0) from 47.103.24.173 time=26573 us
+SYN&ACK(1) from 47.103.24.173 time=18944 us
+SYN&ACK(2) from 47.103.24.173 time=15782 us
+SYN&ACK(3) from 47.103.24.173 time=28188 us
+SYN&ACK(4) from 47.103.24.173 time=17065 us
+SYN&ACK(5) from 47.103.24.173 time=15830 us
+SYN&ACK(6) from 47.103.24.173 time=27376 us
+SYN&ACK(7) from 47.103.24.173 time=25173 us
+SYN&ACK(8) from 47.103.24.173 time=79112 us
+SYN&ACK(9) from 47.103.24.173 time=55702 us
+Valid Result Count: 10
+RTTs(us): 26573.354, 18944.521, 15782.49, 28188.198, 17065.896, 15830.354, 27376.864, 25173.698, 79112.698, 55702.5
+AVG RTT(us): 30975.0573
 ```
 
 In another example, I want to test a lot of ips' latencies, so I wrote a python script to invoke this tester, and collect results as csv:
@@ -60,7 +54,7 @@ def get_rtt(ip, port=443, device='eth0', iter_cnt=5):
     result = subprocess.run(['./tcplatency', device, ip, str(port), str(iter_cnt)], capture_output=True)
     output = result.stdout.decode()
     for line in output.split('\n'):
-        if "AVG RTT(ns)" in line:
+        if "AVG RTT(us)" in line:
             return float(line.split(" ")[-1])
     return float("nan")
 
