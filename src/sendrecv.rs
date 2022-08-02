@@ -11,6 +11,7 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::tcp::TcpPacket;
 use portpicker::pick_unused_port;
 use std::net::{IpAddr, Ipv4Addr};
+use std::thread::sleep;
 use std::time::Instant;
 use crate::gateway;
 
@@ -52,36 +53,37 @@ fn get_local_ipv4_addr(interface: &NetworkInterface) -> Ipv4Addr {
     };
     ipv4
 }
-const TIMEOUT: u128 = 10;
-pub fn test_latency(if_name: &str, dest_ipv4_addr: &str, dest_port: u16, iter: usize) -> Vec<u128> {
+
+const TIMEOUT: u128 = 3;
+pub fn test_latency(if_name: &str, dest_ipv4_addr: std::net::Ipv4Addr, dest_port: u16, iter: usize) -> Vec<u128> {
     let interface = get_interface(if_name);
     let local_ipv4_addr = get_local_ipv4_addr(&interface);
-    
-    let (mut sender, mut receiver) = get_sender_receiver(if_name);
-    let mut rtts = Vec::with_capacity(iter);
     let gateway_mac = get_gateway_mac_addr(if_name);
+
+    let mut rtts = Vec::with_capacity(iter);
+
+    let (mut sender, mut receiver) = get_sender_receiver(if_name);    
     for i in 0..iter {
         let local_port = pick_unused_port().unwrap_or_else(|| panic!("No local port available."));
+
         let mut pkt_buf = [0u8; 1500];
         let packet = packet_builder!(
             pkt_buf,
             ether({set_destination => gateway_mac, set_source => interface.mac.unwrap()}) /
-            ipv4({set_source => local_ipv4_addr, set_destination => ipv4addr!(dest_ipv4_addr) }) /
+            ipv4({set_source => local_ipv4_addr, set_destination => dest_ipv4_addr }) /
             tcp({set_source => local_port, set_destination => dest_port, set_flags => (TcpFlags::SYN)}) /
             payload({[0; 0]})
         );
-        
-        println!("sending {} SYN packet", i);
+
         let start = Instant::now();
         sender.send_to(packet.packet(), None).unwrap().unwrap();
         let send_duration = start.elapsed().as_nanos();
-        println!("send duration {} us", send_duration / 1000);
         loop {
             match receiver.next() {
                 Ok(packet) => {
                     let elapsed = start.elapsed().as_nanos();
                     if elapsed > 1000_000_000 * TIMEOUT {
-                        println!("{} packet receive timeout({}s)", i, TIMEOUT);
+                        println!("Packet({}) receive timeout({}s)", i, TIMEOUT);
                         break;
                     }
                     let packet = EthernetPacket::new(packet).unwrap();
@@ -91,7 +93,7 @@ pub fn test_latency(if_name: &str, dest_ipv4_addr: &str, dest_port: u16, iter: u
                     let Some(ipv4_pkt) = Ipv4Packet::new(packet.payload()) else {
                         continue;
                     };
-                    if ipv4_pkt.get_source().to_string() != dest_ipv4_addr || 
+                    if ipv4_pkt.get_source() != dest_ipv4_addr || 
                         ipv4_pkt.get_next_level_protocol() != IpNextHeaderProtocols::Tcp {
                         continue;
                     }
@@ -101,7 +103,7 @@ pub fn test_latency(if_name: &str, dest_ipv4_addr: &str, dest_port: u16, iter: u
                     if tcp_pkt.get_source() == dest_port && tcp_pkt.get_destination() == local_port {
                         assert!((tcp_pkt.get_flags() & TcpFlags::SYN) != 0 && (tcp_pkt.get_flags() & TcpFlags::ACK) != 0);
                         let rtt = (elapsed - send_duration / 2) / 2;
-                        println!("packet {} rtt: {} us", i, rtt / 1000);
+                        println!("SYN&ACK({}) from {} time={} us", i, dest_ipv4_addr, rtt / 1000);
                         rtts.push(rtt);
                         break;
                     }
@@ -111,6 +113,7 @@ pub fn test_latency(if_name: &str, dest_ipv4_addr: &str, dest_port: u16, iter: u
                 }
             }
         }
+        sleep(std::time::Duration::from_millis(500));
     }
     return rtts;
 }

@@ -4,28 +4,51 @@ extern crate pnet;
 
 mod gateway;
 mod sendrecv;
-use std::{env, net::Ipv4Addr};
+use std::{net::Ipv4Addr};
+use clap::Parser;
+use dns_lookup::lookup_host;
+
+
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// Local interface
+    #[clap(short, long, value_parser)]
+    if_name: String,
+
+    /// Destination hostname(domain or ipv4 address, ipv6 is not tested)
+    #[clap(short, long, value_parser)]
+    hostname: String,
+
+    /// Destination port
+    #[clap(short, long, value_parser, default_value_t = 80)]
+    port: u16,
+    
+    /// Number of times to ping
+    #[clap(short, long, value_parser, default_value_t = 10)]
+    count: usize
+}
+
 fn main() {
-    let help = "Usage: ./tcplatency <interface name> <dest ipv4 addr> <dest port> [count]";
-    let if_name = env::args()
-        .nth(1)
-        .expect(help);
-    let dest_ip = env::args()
-        .nth(2)
-        .expect(help);
-    dest_ip.parse::<Ipv4Addr>().expect(&format!("Err: {} is not a valid ipv4 addr", dest_ip));
-    let dest_port = env::args()
-        .nth(3)
-        .expect(help)
-        .parse()
-        .expect("Err: invalid port");
-    let iter = env::args()
-        .nth(4)
-        .unwrap_or("5".to_string())
-        .parse()
-        .expect("Err: invalid count");
-    let res = sendrecv::test_latency(&if_name, &dest_ip, dest_port, iter);
+    let args = Args::parse();
+    let dest_ip = if let Ok(ip) = args.hostname.parse::<Ipv4Addr>() {
+        ip
+    } else {
+        let ips: Vec<std::net::IpAddr> = lookup_host(&args.hostname).unwrap();
+        let ip = ips
+            .into_iter()
+            .filter(|ip| ip.is_ipv4())
+            .next()
+            .unwrap_or_else(|| panic!("No ipv4 address found for hostname: {}", args.hostname));
+        let std::net::IpAddr::V4(ipv4) = ip else {
+            unreachable!();
+        };
+        ipv4
+    };
+    
+    let res = sendrecv::test_latency(&args.if_name, dest_ip, args.port, args.count);
     println!("Valid Result Count: {}", res.len());
-    println!("RTTs(ns): {}", res.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","));
-    println!("AVG RTT(ns): {}", res.iter().sum::<u128>() as f64 / res.len() as f64);
+    println!("RTTs(us): {}", res.iter().map(|v| (*v as f64 / 1000.).to_string()).collect::<Vec<_>>().join(", "));
+    println!("AVG RTT(us): {}", res.iter().sum::<u128>() as f64 / (res.len() as f64 * 1000.));
 }
